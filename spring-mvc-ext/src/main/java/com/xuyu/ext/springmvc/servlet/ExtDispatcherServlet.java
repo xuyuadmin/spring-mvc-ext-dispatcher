@@ -31,23 +31,30 @@ import com.xuyu.ext.springmvc.utils.ClassUtil;
  * @author Administrator
  *
  */
+//【一】：创建一个前端控制器 ExtDispatcherServlet 继承HttpServlet
 public class ExtDispatcherServlet extends HttpServlet{
 
-	//扫包范围
+	//定义扫包范围
 	private  String packageName="com.xuyu.ext.springmvc.controller";
+	/**
+	 * new 3个map集合来存
+	 */
 	//springmvc容器对象 key为类名id，value为类对象
-	private ConcurrentHashMap<String, Object>springmvcBeans=new ConcurrentHashMap<String, Object>();
+	private ConcurrentHashMap<String, Object>map1=new ConcurrentHashMap<String, Object>();
 	//springmvc容器对象 key为请求地址，value为类对象
-	private ConcurrentHashMap<String, Object>urlBeans=new ConcurrentHashMap<String, Object>();
+	private ConcurrentHashMap<String, Object>map2=new ConcurrentHashMap<String, Object>();
 	//springmvc 容器对象 key为请求地址，value为方法名称
-	private ConcurrentHashMap<String, String>urlMethods=new ConcurrentHashMap<String, String>();
+	private ConcurrentHashMap<String, String>map3=new ConcurrentHashMap<String, String>();
 
+	/**
+	 * 【二】：重写HttpServlet的init()方法
+	 */
 	@Override
 	public void init() throws ServletException {
-		//1.获取当前包下的所有类
+		//1.扫包去获得当前包下的所有类
 		List<Class<?>> classes = ClassUtil.getClasses(packageName);
-		//2.判断类上是否有注解，使用Java反射机制循环遍历方法是否有注解，进行封装url和方法对应
 		try {
+			//2.判断类上是否加上ExtController注解
 			findClassMvcAnnotation(classes);
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -57,48 +64,51 @@ public class ExtDispatcherServlet extends HttpServlet{
 	}
 	public void findClassMvcAnnotation(List<Class<?>> classes) throws Exception {
 		for (Class<?> classInfo : classes) {
-			//判断类上是否加了注解
 			ExtController extControllerAnnotation = classInfo.getDeclaredAnnotation(ExtController.class);
+			//3.如果类上存在相对应的注解
 			if(extControllerAnnotation!=null) {
-				//将类名转小写就是默认的类对应的beanid
+				//①将类名首字母转小写作为beanId
 				String beanId = ClassUtil.toLowerCaseFirstOne(classInfo.getSimpleName());
-				//调用反射机制初始化得到实例化对象
+				//②使用java反射机制实例化对象得到beanObject
 				Object beanObject = ClassUtil.newInstance(classInfo);
-				//如果类上加上注解，就把类放到map集合中
-				springmvcBeans.put(beanId, beanObject);
+				//③把对象的beanId作为key，beanObject作为value存map1集合
+				map1.put(beanId, beanObject);
 			}
 		}
 	}
-	//将url和方法进行关联
+	//【三】：将url映射和方法进行关联
 	public void handlerMapping() {
-		//1.获取springmvcBeans bean的容器对象
-		//2.遍历springmvcBeans bean容器 判断类上是否有url映射注解
-		for (Map.Entry<String, Object> springmvcBeanObject : springmvcBeans.entrySet()) {
-			//3.遍历所有方法上是否有url映射注解 获取bean对象
-			Object beanObject = springmvcBeanObject.getValue();
-			//4.判断类上是否加上了URL映射注解
+		for (Map.Entry<String, Object> map1BeanObject : map1.entrySet()) {
+			//1.从map1集合中循环遍历获取beanObject实例对象
+			Object beanObject = map1BeanObject.getValue();
+			//2.通过beanObject实例对象得到对象类型
 			Class<? extends Object> classInfo = beanObject.getClass();
+			//3.通过这个对象类型去获得ExtRequestMapping注解
 			ExtRequestMapping extRequestMapping = classInfo.getDeclaredAnnotation(ExtRequestMapping.class);
 			String beanClassUrl ="";
+			//4.如果类上存在相对应的注解
 			if(extRequestMapping!=null) {
-				//获取类上的url映射地址
+				//获取这个类上的注解的value值就是对应url映射地址
 				beanClassUrl = extRequestMapping.value();
 			}
-			//4.判断方法上是否加url映射地址
+			//5.根据这个类信息去获取这个类下的所有方法
 			Method[] declaredMethods = classInfo.getDeclaredMethods();
+			//6.循环遍历得到的方法
 			for (Method method : declaredMethods) {
-				//判断方法上是否加上url映射注解
+				//6.1根据方法名称去查找这个方法上的ExtRequestMapping注解
 				ExtRequestMapping methodExTRequestMapping = method.getDeclaredAnnotation(ExtRequestMapping.class);
+				//6.2.如果方法上有ExtRequestMapping注解
 				if(methodExTRequestMapping!=null) {
-					//获取方法上的url映射地址
+					//1.获得这个方法上注解的value值就是对应的url映射地址
 					String beanMethodUrl = methodExTRequestMapping.value();
-					//获取方法名称
+					//2.获取方法名称
 					String methodName = method.getName();
-					//url拼接
+					//3.url拼接
 					String realUrl=beanClassUrl+beanMethodUrl;
-					//将地址和类对象存入map集合中
-					urlBeans.put(realUrl, beanObject);
-					urlMethods.put(realUrl, methodName);
+					//4.将地址和类对象实例存入map2集合中
+					map2.put(realUrl, beanObject);
+					//5.将地址和方法名称存map3集合中
+					map3.put(realUrl, methodName);
 				}
 			}
 		}
@@ -115,14 +125,14 @@ public class ExtDispatcherServlet extends HttpServlet{
 		if(StringUtils.isEmpty(requestURI)) {
 			return;
 		}
-		//2.从map集合中获取控制对象
-		Object object = urlBeans.get(requestURI);
+		//2.从map2集合中使用url地址获取对象实例
+		Object object = map2.get(requestURI);
 		if(object==null) {
 			resp.getWriter().println("not found 404 url");
 			return;
 		}
-		//3.使用url地址获取方法
-		String methodName = urlMethods.get(requestURI);
+		//3.从map3集合中使用url地址获取方法名称
+		String methodName = map3.get(requestURI);
 		if(StringUtils.isEmpty(methodName)) {
 			resp.getWriter().println("not found 404 methodName");
 		}
@@ -141,9 +151,13 @@ public class ExtDispatcherServlet extends HttpServlet{
 	}
 	private Object methodInvoke(Object object,String methodName) {
 		try {
+			//1.获取对象类型
 			Class<? extends Object> classInfo = object.getClass();
+			//2.通过对象类型获得方法名称
 			Method method = classInfo.getMethod(methodName);
+			//通过方法名称反射获取方法
 			Object invokeResult = method.invoke(object);
+			//返回方法结果
 			return invokeResult;
 		} catch (Exception e) {
 			e.printStackTrace();
