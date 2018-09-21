@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://java.sun.com/xml/ns/j2ee" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee/web-app_2_4.xsd"
+	version="2.4">
+
+
+	<!-- Spring MVC 核心控制器 DispatcherServlet 配置 -->
+	<servlet>
+		<servlet-name>dispatcher</servlet-name>
+		<servlet-class>com.xuyu.ext.springmvc.servlet.ExtDispatcherServlet
+		</servlet-class>
+		<load-on-startup>1</load-on-startup>
+	</servlet>
+	<servlet-mapping>
+		<servlet-name>dispatcher</servlet-name>
+		<!-- 拦截所有/* 的请求,交给DispatcherServlet处理,性能最好 -->
+		<url-pattern>/</url-pattern>
+	</servlet-mapping>
+</web-app>
